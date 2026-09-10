@@ -1,6 +1,7 @@
 package nanoforth
 
 import java.util.NoSuchElementException
+import scala.annotation.tailrec
 import scala.collection.immutable.Map
 
 type Primitive = Forth => Forth
@@ -18,9 +19,8 @@ type Primitive = Forth => Forth
   * of the stack (the most recently pushed value).
   */
 
-case class Forth(stack: Vector[Long] = Vector.empty, output: String = "") {
-
-  private val dictionary: Map[String,Primitive] = Map(
+object Forth:
+  val builtins: Map[String, Primitive] = Map(
     "+" -> (_.add),
     "-" -> (_.sub),
     "*" -> (_.mul),
@@ -37,6 +37,8 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "") {
     "DUP" -> (_.dup),
     "DROP" -> (_.drop)
   )
+
+case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictionary: Map[String,Primitive] = Forth.builtins) {
 
   /** Evaluate a single whitespace-delimited token against the current
     * state, returning the new state.
@@ -161,7 +163,32 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "") {
       case _ => dictionary.getOrElse(word, throw NoSuchElementException(word))(this)
 
 
-  /** Evaluate a whole line of input, left to right. */
   def run(input: String): Forth =
-    input.split(' ').foldLeft(this)((forth,word) => forth.eval(word))
+    runTokens(input.split("\\s+").toList)
+
+  @tailrec
+  private def runTokens(tokens: List[String]): Forth =
+    tokens match
+      case List() =>
+        this
+
+      case ":" :: name :: rest =>
+        if !rest.contains(";") then throw UnterminatedDefinitionException()
+
+        val (body, remaining) =
+          rest.span(_ != ";")
+
+        val definition: Primitive =
+          state =>
+            body.foldLeft(state)((s, token) =>
+              s.eval(token)
+            )
+
+        copy(
+          dictionary =
+            dictionary + (name -> definition)
+        ).runTokens(remaining.tail)
+
+      case word :: rest =>
+        eval(word).runTokens(rest)
 }
