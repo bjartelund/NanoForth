@@ -30,6 +30,7 @@ object Forth:
     ">" -> (_.greaterThan),
     "." -> (_.dot),
     ".S" -> (_.dotS),
+    "I" -> (_.i),
     "AND" -> (_.and),
     "OR" -> (_.or),
     "SWAP" -> (_.swap),
@@ -38,7 +39,7 @@ object Forth:
     "DROP" -> (_.drop)
   )
 
-case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictionary: Map[String,Primitive] = Forth.builtins) {
+case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictionary: Map[String,Primitive] = Forth.builtins, loopIndices: Vector[Long] = Vector.empty) {
 
   /** Evaluate a single whitespace-delimited token against the current
     * state, returning the new state.
@@ -86,6 +87,9 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
   private def dotS : Forth =
     if stack.isEmpty then this
     else copy(output = output + stack.mkString(" ") + " ")
+
+  private def i : Forth =
+    push(loopIndices.last)
 
   private def equal : Forth =
     val (b, a, forth) = pop2
@@ -168,7 +172,15 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
 
   private def replay(body: List[String]): Primitive =
     state => state.runTokens(body)
-  
+
+  private def loop(index: Long, limit: Long, body: List[String]) : Forth =
+    if index >= limit then this
+    else
+      val withIndex = copy(loopIndices = loopIndices :+ index)
+      val afterBody = withIndex.runTokens(body)
+      val cleaned = afterBody.copy(loopIndices = afterBody.loopIndices.dropRight(1))
+      cleaned.loop(index+1,limit, body)
+
   @tailrec
   private def runTokens(tokens: List[String]): Forth =
     tokens match
@@ -206,6 +218,13 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
 
         afterPop.runTokens(chosenBranch++tokensAfterThen)
 
+      case "DO" :: rest =>
+        val (index,limit,afterPop) = pop2
+
+        val (body,tokensAfterLoop) = rest.span(_ != "LOOP") match
+          case (b,"LOOP" :: after ) => (b,after)
+          case _ => throw UnterminatedLoopException()
+        afterPop.loop(index, limit, body).runTokens(tokensAfterLoop)
 
       case word :: rest =>
         eval(word).runTokens(rest)
