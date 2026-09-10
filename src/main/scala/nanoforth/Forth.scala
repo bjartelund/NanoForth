@@ -1,6 +1,9 @@
 package nanoforth
 
 import java.util.NoSuchElementException
+import scala.collection.immutable.Map
+
+type Primitive = Forth => Forth
 
 /** The state of a nano-Forth interpreter: just a data stack, for now.
   *
@@ -14,7 +17,19 @@ import java.util.NoSuchElementException
   * `stack` is ordered from bottom to top: the last element is the top
   * of the stack (the most recently pushed value).
   */
+
 case class Forth(stack: Vector[Long] = Vector.empty) {
+
+  private val dictionary: Map[String,Primitive] = Map(
+    "+" -> (_.add),
+    "-" -> (_.sub),
+    "*" -> (_.mul),
+    "/" -> (_.div),
+    "SWAP" -> (_.swap),
+    "OVER" -> (_.over),
+    "DUP" -> (_.dup),
+    "DROP" -> (_.drop)
+  )
 
   /** Evaluate a single whitespace-delimited token against the current
     * state, returning the new state.
@@ -93,23 +108,7 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
 
       case number if number.toLongOption.isDefined => copy(stack = stack :+ number.toLong)
 
-      case "+" => add
-
-      case "-" => sub
-
-      case "*" => mul
-
-      case "/" => div
-
-      case "DUP" => dup
-
-      case "DROP" => drop
-
-      case "SWAP" => swap
-
-      case "OVER" => over
-
-      case unknownElement => throw NoSuchElementException(unknownElement)
+      case _ => dictionary.getOrElse(word, throw NoSuchElementException(word))(this)
 
 
   /** Evaluate a whole line of input, left to right. */
