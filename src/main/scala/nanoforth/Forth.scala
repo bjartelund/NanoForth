@@ -19,13 +19,75 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
   /** Evaluate a single whitespace-delimited token against the current
     * state, returning the new state.
     */
+
+  private def pop: (Long, Forth) =
+    (stack.last, copy(stack = stack.dropRight(1)))
+
+  /** Pop the top two values for a binary word, e.g. "a b op".
+    *
+    * The first value popped (`b`) is the top of the stack — the operand
+    * that was pushed *last* — and the second (`a`) is the one below it.
+    * Returning them as `(b, a, forth)`, in pop order rather than push
+    * order, is what forces every call site to stop and ask "which one
+    * was on top?" instead of assuming left-to-right = source order.
+    * That's deliberate: `sub`/`div` need `a - b` / `a / b`, and a
+    * `(a, b, forth)` tuple would make it dangerously easy to get that
+    * backwards without noticing, since `a op b` reads fine either way
+    * until you check the actual arithmetic.
+    */
+  private def pop2: (Long,Long,Forth) =
+    if stack.size < 2 then throw StackUnderflowException()
+
+    val (b, iForth) = pop
+    val (a, jForth) = iForth.pop
+    (b,a,jForth)
+
+  private def push(value: Long) : Forth =
+    copy(stack = stack :+ value)
+
+
+  // Each binary word checks `stack.size < 2` before calling `pop2`, rather
+  // than letting `pop2` fail on its own. `pop` reaches for `stack.last`
+  // unconditionally, so on a starved stack it would blow up with
+  // `NoSuchElementException` (empty stack) or run once, then have the
+  // *second* pop fail the same way on a one-element stack — a raw,
+  // implementation-detail exception that leaks how the stack happens to
+  // be represented. The guard turns that into a `StackUnderflowException`
+  // up front, naming the real Forth-level problem (not enough operands)
+  // instead of an accidental one (calling `.last` on an empty Vector).
+
+  private def add : Forth =
+    val (b, a, forth) = pop2
+    forth.push(b+a)
+
+  private def sub : Forth =
+    val (b, a, forth) = pop2
+    forth.push(a - b)
+
+  private def mul: Forth =
+    val (b, a, forth) = pop2
+    forth.push(a * b)
+
+  private def div: Forth =
+    val (b, a, forth) = pop2
+    forth.push(a / b)
+
   def eval(word: String): Forth =
     word match
       case emptyString if emptyString.isBlank => this
 
       case number if number.toLongOption.isDefined => copy(stack = stack :+ number.toLong)
 
+      case "+" => add
+
+      case "-" => sub
+
+      case "*" => mul
+
+      case "/" => div
+
       case unknownElement => throw NoSuchElementException(unknownElement)
+
 
   /** Evaluate a whole line of input, left to right. */
   def run(input: String): Forth =
