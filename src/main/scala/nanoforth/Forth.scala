@@ -21,6 +21,7 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
     */
 
   private def pop: (Long, Forth) =
+    if stack.size < 1 then throw StackUnderflowException()
     (stack.last, copy(stack = stack.dropRight(1)))
 
   /** Pop the top two values for a binary word, e.g. "a b op".
@@ -36,8 +37,6 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
     * until you check the actual arithmetic.
     */
   private def pop2: (Long,Long,Forth) =
-    if stack.size < 2 then throw StackUnderflowException()
-
     val (b, iForth) = pop
     val (a, jForth) = iForth.pop
     (b,a,jForth)
@@ -72,6 +71,22 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
     val (b, a, forth) = pop2
     forth.push(a / b)
 
+  private def dup: Forth =
+    val (a,_) = pop
+    copy(stack = stack :+ a)
+
+  private def drop: Forth =
+    val (_,newForth) = pop
+    newForth
+
+  private def swap: Forth =
+    val (b,a, forth) = pop2
+    forth.push(b).push(a)
+
+  private def over: Forth =
+    val (b, a, forth) = pop2
+    forth.push(a).push(b).push(a)
+
   def eval(word: String): Forth =
     word match
       case emptyString if emptyString.isBlank => this
@@ -85,6 +100,14 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
       case "*" => mul
 
       case "/" => div
+
+      case "DUP" => dup
+
+      case "DROP" => drop
+
+      case "SWAP" => swap
+
+      case "OVER" => over
 
       case unknownElement => throw NoSuchElementException(unknownElement)
 
