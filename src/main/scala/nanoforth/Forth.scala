@@ -25,6 +25,11 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
     "-" -> (_.sub),
     "*" -> (_.mul),
     "/" -> (_.div),
+    "=" -> (_.equal),
+    ">" -> (_.lessThan),
+    "<" -> (_.greaterThan),
+    "AND" -> (_.and),
+    "OR" -> (_.or),
     "SWAP" -> (_.swap),
     "OVER" -> (_.over),
     "DUP" -> (_.dup),
@@ -69,6 +74,41 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
   // be represented. The guard turns that into a `StackUnderflowException`
   // up front, naming the real Forth-level problem (not enough operands)
   // instead of an accidental one (calling `.last` on an empty Vector).
+
+  private def equal : Forth =
+    val (b, a, forth) = pop2
+    if a == b then
+      forth.push(-1)
+    else
+      forth.push(0)
+
+  private def lessThan : Forth =
+    val (b, a, forth) = pop2
+    if a > b then
+      forth.push(-1)
+    else
+      forth.push(0)
+
+  private def greaterThan: Forth =
+    val (b, a, forth) = pop2
+    if a < b then
+      forth.push(-1)
+    else
+      forth.push(0)
+
+  private def and: Forth =
+    val (b, a, forth) = pop2
+    if a != 0 && b != 0 then
+      forth.push(-1)
+    else
+      forth.push(0)
+
+  private def or: Forth =
+    val (b, a, forth) = pop2
+    if a != 0 || b != 0 then
+      forth.push(-1)
+    else
+      forth.push(0)
 
   private def add : Forth =
     val (b, a, forth) = pop2
