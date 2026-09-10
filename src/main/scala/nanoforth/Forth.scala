@@ -18,7 +18,7 @@ type Primitive = Forth => Forth
   * of the stack (the most recently pushed value).
   */
 
-case class Forth(stack: Vector[Long] = Vector.empty) {
+case class Forth(stack: Vector[Long] = Vector.empty, output: String = "") {
 
   private val dictionary: Map[String,Primitive] = Map(
     "+" -> (_.add),
@@ -26,8 +26,10 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
     "*" -> (_.mul),
     "/" -> (_.div),
     "=" -> (_.equal),
-    ">" -> (_.lessThan),
-    "<" -> (_.greaterThan),
+    "<" -> (_.lessThan),
+    ">" -> (_.greaterThan),
+    "." -> (_.dot),
+    ".S" -> (_.dotS),
     "AND" -> (_.and),
     "OR" -> (_.or),
     "SWAP" -> (_.swap),
@@ -75,6 +77,14 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
   // up front, naming the real Forth-level problem (not enough operands)
   // instead of an accidental one (calling `.last` on an empty Vector).
 
+  private def dot : Forth =
+    val (a,forth) = pop
+    copy(stack = forth.stack,output = output + a.toString + " ")
+
+  private def dotS : Forth =
+    if stack.isEmpty then this
+    else copy(output = output + stack.mkString(" ") + " ")
+
   private def equal : Forth =
     val (b, a, forth) = pop2
     if a == b then
@@ -84,14 +94,14 @@ case class Forth(stack: Vector[Long] = Vector.empty) {
 
   private def lessThan : Forth =
     val (b, a, forth) = pop2
-    if a > b then
+    if a < b then
       forth.push(-1)
     else
       forth.push(0)
 
   private def greaterThan: Forth =
     val (b, a, forth) = pop2
-    if a < b then
+    if a > b then
       forth.push(-1)
     else
       forth.push(0)
