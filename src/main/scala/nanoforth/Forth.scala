@@ -20,7 +20,7 @@ type Primitive = Forth => Forth
   */
 
 object Forth:
-  val builtins: Map[String, Primitive] = Map(
+  private val builtins: Map[String, Primitive] = Map(
     "+" -> (_.add),
     "-" -> (_.sub),
     "*" -> (_.mul),
@@ -166,6 +166,9 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
   def run(input: String): Forth =
     runTokens(input.split("\\s+").toList)
 
+  private def replay(body: List[String]): Primitive =
+    state => state.runTokens(body)
+  
   @tailrec
   private def runTokens(tokens: List[String]): Forth =
     tokens match
@@ -178,16 +181,31 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
         val (body, remaining) =
           rest.span(_ != ";")
 
-        val definition: Primitive =
-          state =>
-            body.foldLeft(state)((s, token) =>
-              s.eval(token)
-            )
+        val definition: Primitive =replay(body)
 
         copy(
           dictionary =
             dictionary + (name -> definition)
         ).runTokens(remaining.tail)
+
+
+      case "IF" :: rest =>
+        if !rest.contains("THEN") then throw UnterminatedConditionalException()
+        val (flag, afterPop) = pop
+
+        val (trueBranch,afterTrueBranch) = rest.span(w=> w!= "ELSE" && w != "THEN")
+        val (falseBranch, tokensAfterThen) = afterTrueBranch match
+          case "THEN" :: after => (Nil, after)
+          case "ELSE" :: afterElse =>
+            afterElse.span(_ != "THEN") match
+              case (fb, "THEN" :: after) => (fb, after)
+              case _ => throw UnterminatedConditionalException()
+          case _ => throw UnterminatedConditionalException()
+
+        val chosenBranch = if flag != 0 then trueBranch else falseBranch
+
+        afterPop.runTokens(chosenBranch++tokensAfterThen)
+
 
       case word :: rest =>
         eval(word).runTokens(rest)
