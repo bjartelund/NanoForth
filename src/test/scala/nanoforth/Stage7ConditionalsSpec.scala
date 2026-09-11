@@ -20,8 +20,10 @@ package nanoforth
   * implementation folds `eval` over the body directly, the `ABS`
   * test below is where that will need to change.
   *
-  * Nested `IF` (one `IF` inside another `IF`'s branch) is out of scope
-  * for this nano-Forth and isn't tested here.
+  * Nested conditionals (an `IF`/`ELSE` inside another `IF`'s branch)
+  * are rejected at parse time with `NestedConditionalException` rather
+  * than being misread as the outer `IF`/`ELSE`/`THEN` markers — see
+  * the test at the end.
   */
 class Stage7ConditionalsSpec extends munit.FunSuite {
 
@@ -72,5 +74,11 @@ class Stage7ConditionalsSpec extends munit.FunSuite {
     val forth = Forth().run(": ABS DUP 0 < IF -1 * THEN ;")
     assertEquals(forth.run("5 ABS").stack, Vector(5L))
     assertEquals(forth.run("-5 ABS").stack, Vector(5L))
+  }
+
+  test("a nested IF in a branch raises NestedConditionalException") {
+    intercept[NestedConditionalException] {
+      Forth().run("1 1 IF 1 IF THEN THEN")
+    }
   }
 }
