@@ -12,6 +12,11 @@ package nanoforth
   * is. Unlike every earlier word, its result changes on every
   * iteration — it isn't reading the data stack, it's reading the loop's
   * own running state.
+  *
+  * A `DO` nested in a loop body is rejected with `NestedLoopException`
+  * (and a `:` in the body, with `NestedDefinitionException`), because
+  * the single-level parse would misread the nested markers, and a
+  * nested `:` would redefine a word on every iteration.
   */
 class Stage8LoopsSpec extends munit.FunSuite {
 
@@ -57,5 +62,17 @@ class Stage8LoopsSpec extends munit.FunSuite {
     val forth = Forth().run(": COUNTUP 0 DO I . LOOP ;")
     assertEquals(forth.run("5 COUNTUP").output, "0 1 2 3 4 ")
     assertEquals(forth.run("3 COUNTUP").output, "0 1 2 ")
+  }
+
+  test("a nested DO in a loop body raises NestedLoopException") {
+    intercept[NestedLoopException] {
+      Forth().run("5 0 DO 3 0 DO 1 LOOP LOOP")
+    }
+  }
+
+  test("a : in a loop body raises NestedDefinitionException") {
+    intercept[NestedDefinitionException] {
+      Forth().run("5 0 DO : F 42 ; LOOP")
+    }
   }
 }

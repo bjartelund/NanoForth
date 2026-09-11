@@ -70,15 +70,15 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
     copy(stack = stack :+ value)
 
 
-  // Each binary word checks `stack.size < 2` before calling `pop2`, rather
-  // than letting `pop2` fail on its own. `pop` reaches for `stack.last`
-  // unconditionally, so on a starved stack it would blow up with
-  // `NoSuchElementException` (empty stack) or run once, then have the
-  // *second* pop fail the same way on a one-element stack — a raw,
+  // The underflow guard lives in `pop` itself, so `pop2` can simply call
+  // it — no separate size check on the caller side. `pop` reaches for
+  // `stack.last` unconditionally, so on a starved stack it would otherwise
+  // blow up with a raw `NoSuchElementException` (empty stack) after
+  // having already popped the stack's last remaining element — a raw,
   // implementation-detail exception that leaks how the stack happens to
   // be represented. The guard turns that into a `StackUnderflowException`
-  // up front, naming the real Forth-level problem (not enough operands)
-  // instead of an accidental one (calling `.last` on an empty Vector).
+  // instead, naming the real Forth-level problem (not enough operands)
+  // rather than an accidental one (calling `.last` on an empty Vector).
 
   private def dot : Forth =
     val (a,forth) = pop
@@ -193,6 +193,10 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
         val (body, remaining) =
           rest.span(_ != ";")
 
+        // A `:` inside the body would be replayed on every call,
+        // re-defining a word over and over. Reject at parse time.
+        if body.contains(":") then throw NestedDefinitionException()
+
         val definition: Primitive =replay(body)
 
         copy(
@@ -214,6 +218,11 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
               case _ => throw UnterminatedConditionalException()
           case _ => throw UnterminatedConditionalException()
 
+        // A nested IF/ELSE in either branch would be misread as the
+        // outer markers by the single-level parse above. Reject it.
+        if (trueBranch ++ falseBranch).exists(w => w == "IF" || w == "ELSE")
+          then throw NestedConditionalException()
+
         val chosenBranch = if flag != 0 then trueBranch else falseBranch
 
         afterPop.runTokens(chosenBranch++tokensAfterThen)
@@ -224,6 +233,12 @@ case class Forth(stack: Vector[Long] = Vector.empty, output: String = "", dictio
         val (body,tokensAfterLoop) = rest.span(_ != "LOOP") match
           case (b,"LOOP" :: after ) => (b,after)
           case _ => throw UnterminatedLoopException()
+
+        // A nested DO or `:` in the body would be misread (or replayed
+        // on every iteration) by the single-level parse above. Reject it.
+        if body.contains("DO") then throw NestedLoopException()
+        if body.contains(":") then throw NestedDefinitionException()
+
         afterPop.loop(index, limit, body).runTokens(tokensAfterLoop)
 
       case word :: rest =>

@@ -13,6 +13,11 @@ package nanoforth
   * `output` already do), and a new exception —
   * `UnterminatedDefinitionException` — for a `:` that never finds its
   * closing `;`.
+  *
+  * A `:` inside a word body is rejected at parse time with
+  * `NestedDefinitionException`: `runTokens` replays a body from the top
+  * on every call, so a nested definition would redefine its word on
+  * every invocation.
   */
 class Stage6WordDefinitionsSpec extends munit.FunSuite {
 
@@ -60,6 +65,12 @@ class Stage6WordDefinitionsSpec extends munit.FunSuite {
   test("a definition missing its closing ; raises UnterminatedDefinitionException") {
     intercept[UnterminatedDefinitionException] {
       Forth().run(": FOO 1 2 +")
+    }
+  }
+
+  test("a : nested inside a word body raises NestedDefinitionException") {
+    intercept[NestedDefinitionException] {
+      Forth().run(": F : G 42 ; ; F")
     }
   }
 }
